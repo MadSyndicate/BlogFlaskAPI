@@ -65,6 +65,13 @@ def rollback_change(to_rollback_post, original_post):
                 to_rollback_post[key] = original_post.get(key)
 
 
+def serialize_post(post):
+    return {
+        **post,
+        "created_at":post['created_at'].strftime("%Y-%m-%d"),
+        "updated_at": post['updated_at'].strftime("%Y-%m-%d")
+    }
+
 
 @app.route('/api/posts', methods=['POST'])
 @limiter.limit("10/minute")
@@ -90,12 +97,7 @@ def add_post():
 
     POSTS.append(new_post)
 
-    return jsonify(
-        {
-            **new_post,
-            "created_at":new_post['created_at'].strftime("%Y-%m-%d"),
-            "updated_at": new_post['updated_at'].strftime("%Y-%m-%d"),
-        }), 201
+    return jsonify(serialize_post(new_post)), 201
 
 
 @app.route('/api/posts', methods=['GET'])
@@ -106,7 +108,7 @@ def get_posts():
     post_list = sort_list(post_list, request)
     post_list = apply_pagination(post_list, request)
 
-    return jsonify(post_list), 200
+    return jsonify([serialize_post(p) for p in post_list]), 200
 
 
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
@@ -129,12 +131,7 @@ def update_post_by_id(post_id):
                                       " Changes rolled back."}
                         ), 400
 
-        return jsonify(
-            {
-                **existing_post,
-                "created_at": existing_post['created_at'].strftime("%Y-%m-%d"),
-                "updated_at" : existing_post['updated_at'].strftime("%Y-%m-%d")
-            }), 200
+        return jsonify(serialize_post(existing_post)), 200
     return jsonify({"error": f"No post with id '{post_id}' found."}), 404
 
 
