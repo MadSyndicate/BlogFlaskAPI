@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Flask, jsonify,request
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -8,11 +9,14 @@ CORS(app)  # This will enable CORS for all routes
 limiter = Limiter(app=app, key_func=get_remote_address)
 
 POSTS = [
-    {"id": 1, "title": "First post", "content": "This is the first post."},
-    {"id": 2, "title": "Second post", "content": "This is the second post."},
+    {"id": 1, "title": "First post", "content": "This is the first post.", "author": "Max Mustermann", "created_at": 1776861870.76499, "updated_at": 1776861870.76499, "tags":[1] },
+    {"id": 2, "title": "Second post", "content": "This is the second post.", "author": "Max Mustermann", "created_at": 1776861985.849662, "updated_at": 1776861985.849662, "tags":[]},
 ]
 
-ALLOWED_SORT_KEYS = ["title", "content"]
+MANDATORY_POST_KEYS = [("title", str), ("content", str), ("author", str)]
+OPTIONAL_POST_KEYS = [("tags", list)]
+UPDATABLE_KEYS = MANDATORY_POST_KEYS + OPTIONAL_POST_KEYS
+ALLOWED_SORT_KEYS = ["title", "content", "author", "created_at", "updated_at", "tags"]
 
 
 def find_post_by_id(post_id):
@@ -53,20 +57,39 @@ def apply_pagination(post_list, provided_request):
 
     return post_list[start_index:end_index]
 
+
+def rollback_change(to_rollback_post, original_post):
+    for key, value in to_rollback_post.items():
+        if key in dict(UPDATABLE_KEYS): #only for keys that can be updated by user
+            if original_post.get(key, None) is None:
+                del to_rollback_post[key]
+            elif original_post.get(key) != value:
+                to_rollback_post[key] = original_post.get(key)
+
+
+
 @app.route('/api/posts', methods=['POST'])
 @limiter.limit("10/minute")
 def add_post():
     new_post = request.get_json()
-    if "title" not in new_post and "content" not in new_post:
-        return jsonify({"error": "'title' and 'content' missing"}), 400
-    elif "title" not in new_post:
-        return jsonify({"error": "'title' missing"}), 400
-    elif "content" not in new_post:
-        return jsonify({"error": "'content' missing"}), 400
-    else:
-        new_post['id'] = max(post['id'] for post in POSTS) + 1 or 1
-        POSTS.append(new_post)
-        return jsonify(new_post), 201
+    bad_req_collect = []
+
+    for key, value_type in MANDATORY_POST_KEYS:
+        if key not in new_post:
+            bad_req_collect.append(key)
+        else:
+            if not isinstance(new_post[key], value_type):
+                return jsonify({"error": f"property '{key}' must be <{value_type}>"}), 400
+    if bad_req_collect:
+        return jsonify({"error": "One or more properties are missing", "missing": bad_req_collect}), 400
+
+    new_post['id'] = max(post['id'] for post in POSTS) + 1 or 1
+    new_post['created_at'] = datetime.timestamp(datetime.now())
+    new_post['updated_at'] = datetime.timestamp(datetime.now())
+
+    POSTS.append(new_post)
+
+    return jsonify(new_post), 201
 
 
 @app.route('/api/posts', methods=['GET'])
@@ -85,10 +108,20 @@ def get_posts():
 def update_post_by_id(post_id):
     existing_post = find_post_by_id(post_id)
     if existing_post:
+        rollbackable_post = existing_post.copy()    # in case any update property breaky -> rollback
         new_data = request.get_json()
+        validation_dict = dict(UPDATABLE_KEYS)
         for key, value in new_data.items():
-            if key in existing_post:    # only update keys existing
-                existing_post[key] = value
+            if key in validation_dict:    # only update keys when allowed
+                    if isinstance(value, validation_dict[key]): # only if type for key is correct
+                        existing_post[key] = value
+                        existing_post['updated_at'] = datetime.timestamp(datetime.now())
+                    else:
+                        rollback_change(existing_post, rollbackable_post)
+                        return jsonify(
+                            {"error": f"Key '{key}' must be of type <{validation_dict[key]}>."
+                                      " Changes rolled back."}
+                        ), 400
 
         return jsonify(existing_post), 200
     return jsonify({"error": f"No post with id '{post_id}' found."}), 404
