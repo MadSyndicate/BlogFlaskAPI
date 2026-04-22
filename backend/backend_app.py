@@ -111,6 +111,17 @@ def search_posts():
     return jsonify(found_posts), 200
 
 
+@app.errorhandler(404)
+def not_found_error(error):
+    print(error)
+    return jsonify({"error": "Not Found"}), 404
+
+
+@app.errorhandler(405)
+def method_not_allowed_error(error):
+    return jsonify({"error": "Method Not Allowed"}), 405
+
+
 @app.errorhandler(429)
 def too_many_requests(error):
     return jsonify({"error": "Too many request within time limit"}), 429
