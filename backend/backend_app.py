@@ -20,6 +20,39 @@ def find_post_by_id(post_id):
     return fetched_post[0] if len(fetched_post) == 1 else None  #only if exact 1 match found
 
 
+def sort_list(post_list, provided_request):
+    request_sort_key = provided_request.args.get('sort', None)
+    # only sorting for known keys (no error with 'invalid' key here)
+    if request_sort_key in ALLOWED_SORT_KEYS:
+        request_direction = provided_request.args.get('direction', None)
+        # default sort direction of none is provided
+        if request_direction is None or request_direction == 'asc':
+            post_list = sorted(
+                post_list,
+                key=lambda p: p[request_sort_key]
+            )
+        elif request_direction == 'desc':
+            post_list = sorted(
+                post_list,
+                key=lambda p: p[request_sort_key],
+                reverse=True
+            )
+        else:
+            return jsonify(
+                {"error": f"Invalid sort direction '{request_direction}'"}
+            ), 400
+    return post_list
+
+
+def apply_pagination(post_list, provided_request):
+    page = int(provided_request.args.get('page', 1))
+    limit = int(provided_request.args.get('limit', 10))
+
+    start_index = (page - 1) * limit
+    end_index = start_index + limit
+
+    return post_list[start_index:end_index]
+
 @app.route('/api/posts', methods=['POST'])
 @limiter.limit("10/minute")
 def add_post():
@@ -40,26 +73,9 @@ def add_post():
 @limiter.limit("10/minute")
 def get_posts():
     post_list = POSTS.copy()
-    request_sort_key = request.args.get('sort', None)
-    # only sorting for known keys (no error with 'invalid' key here)
-    if request_sort_key in ALLOWED_SORT_KEYS:
-        request_direction = request.args.get('direction', None)
-        # default sort direction of none is provided
-        if request_direction is None or request_direction == 'asc':
-            post_list = sorted(
-                post_list,
-                key=lambda p: p[request_sort_key]
-            )
-        elif request_direction == 'desc':
-            post_list = sorted(
-                POSTS,
-                key=lambda p: p[request_sort_key],
-                reverse=True
-            )
-        else:
-            return jsonify(
-                {"error": f"Invalid sort direction '{request_direction}'"}
-            ), 400
+
+    post_list = sort_list(post_list, request)
+    post_list = apply_pagination(post_list, request)
 
     return jsonify(post_list), 200
 
@@ -108,6 +124,10 @@ def search_posts():
             if search_content.lower() in post['content'].lower():
                 if post not in found_posts: # in case it was added already by title query
                     found_posts.append(post)
+
+    found_posts = sort_list(found_posts, request)
+    found_posts = apply_pagination(found_posts, request)
+
     return jsonify(found_posts), 200
 
 
