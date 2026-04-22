@@ -35,6 +35,19 @@ def get_posts():
     return jsonify(POSTS)
 
 
+@app.route('/api/posts/<int:post_id>', methods=['PUT'])
+def update_post_by_id(post_id):
+    existing_post = find_post_by_id(post_id)
+    if existing_post:
+        new_data = request.get_json()
+        for key, value in new_data.items():
+            if key in existing_post:    # only update keys existing
+                existing_post[key] = value
+
+        return jsonify(existing_post), 200
+    return jsonify({"error": f"No post with id '{post_id}' found."}), 404
+
+
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
 def delete_post_by_id(post_id):
     existing_post = find_post_by_id(post_id)
