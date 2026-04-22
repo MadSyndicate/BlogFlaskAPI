@@ -1,8 +1,11 @@
 from flask import Flask, jsonify,request
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
+limiter = Limiter(app=app, key_func=get_remote_address)
 
 POSTS = [
     {"id": 1, "title": "First post", "content": "This is the first post."},
@@ -18,6 +21,7 @@ def find_post_by_id(post_id):
 
 
 @app.route('/api/posts', methods=['POST'])
+@limiter.limit("10/minute")
 def add_post():
     new_post = request.get_json()
     if "title" not in new_post and "content" not in new_post:
@@ -33,6 +37,7 @@ def add_post():
 
 
 @app.route('/api/posts', methods=['GET'])
+@limiter.limit("10/minute")
 def get_posts():
     post_list = POSTS.copy()
     request_sort_key = request.args.get('sort', None)
@@ -60,6 +65,7 @@ def get_posts():
 
 
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
+@limiter.limit("10/minute")
 def update_post_by_id(post_id):
     existing_post = find_post_by_id(post_id)
     if existing_post:
@@ -73,6 +79,7 @@ def update_post_by_id(post_id):
 
 
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
+@limiter.limit("10/minute")
 def delete_post_by_id(post_id):
     existing_post = find_post_by_id(post_id)
     if existing_post:
@@ -84,6 +91,7 @@ def delete_post_by_id(post_id):
 
 
 @app.route('/api/posts/search')
+@limiter.limit("10/minute")
 def search_posts():
     search_title = request.args.get('title', None)
     search_content = request.args.get('content', None)
@@ -101,6 +109,11 @@ def search_posts():
                 if post not in found_posts: # in case it was added already by title query
                     found_posts.append(post)
     return jsonify(found_posts), 200
+
+
+@app.errorhandler(429)
+def too_many_requests(error):
+    return jsonify({"error": "Too many request within time limit"}), 429
 
 
 if __name__ == '__main__':
