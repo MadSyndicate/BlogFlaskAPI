@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Flask, jsonify,request
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -9,9 +9,7 @@ CORS(app)  # This will enable CORS for all routes
 limiter = Limiter(app=app, key_func=get_remote_address)
 
 POSTS = [
-    {"id": 1, "title": "First post", "content": "This is the first post.", "author": "Max Mustermann", "created_at": 1776861870.76499, "updated_at": 1776861870.76499, "tags":[1] },
-    {"id": 2, "title": "Second post", "content": "This is the second post.", "author": "Max Mustermann", "created_at": 1776861985.849662, "updated_at": 1776861985.849662, "tags":[]},
-]
+    ]
 
 MANDATORY_POST_KEYS = [("title", str), ("content", str), ("author", str)]
 OPTIONAL_POST_KEYS = [("tags", list)]
@@ -83,13 +81,21 @@ def add_post():
     if bad_req_collect:
         return jsonify({"error": "One or more properties are missing", "missing": bad_req_collect}), 400
 
-    new_post['id'] = max(post['id'] for post in POSTS) + 1 or 1
-    new_post['created_at'] = datetime.timestamp(datetime.now())
-    new_post['updated_at'] = datetime.timestamp(datetime.now())
+    if POSTS:
+        new_post['id'] = max(post['id'] for post in POSTS) + 1
+    else:
+        new_post['id'] = 1
+    new_post['created_at'] = datetime.now(timezone.utc)
+    new_post['updated_at'] = datetime.now(timezone.utc)
 
     POSTS.append(new_post)
 
-    return jsonify(new_post), 201
+    return jsonify(
+        {
+            **new_post,
+            "created_at":new_post['created_at'].strftime("%Y-%m-%d"),
+            "updated_at": new_post['updated_at'].strftime("%Y-%m-%d"),
+        }), 201
 
 
 @app.route('/api/posts', methods=['GET'])
@@ -115,7 +121,7 @@ def update_post_by_id(post_id):
             if key in validation_dict:    # only update keys when allowed
                     if isinstance(value, validation_dict[key]): # only if type for key is correct
                         existing_post[key] = value
-                        existing_post['updated_at'] = datetime.timestamp(datetime.now())
+                        existing_post['updated_at'] = datetime.now(timezone.utc)
                     else:
                         rollback_change(existing_post, rollbackable_post)
                         return jsonify(
@@ -123,7 +129,12 @@ def update_post_by_id(post_id):
                                       " Changes rolled back."}
                         ), 400
 
-        return jsonify(existing_post), 200
+        return jsonify(
+            {
+                **existing_post,
+                "created_at": existing_post['created_at'].strftime("%Y-%m-%d"),
+                "updated_at" : existing_post['updated_at'].strftime("%Y-%m-%d")
+            }), 200
     return jsonify({"error": f"No post with id '{post_id}' found."}), 404
 
 
