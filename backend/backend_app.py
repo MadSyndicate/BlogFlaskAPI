@@ -59,5 +59,25 @@ def delete_post_by_id(post_id):
     return jsonify({"error": f"No post with id '{post_id}' found."}), 404
 
 
+@app.route('/api/posts/search')
+def search_posts():
+    search_title = request.args.get('title', None)
+    search_content = request.args.get('content', None)
+
+    found_posts = []
+    # if both query params provided, will search for every match in the titles AND contents
+    # without duplicates
+    if search_title:
+        for post in POSTS:
+            if search_title.lower() in post['title'].lower():
+                found_posts.append(post)
+    if search_content:
+        for post in POSTS:
+            if search_content.lower() in post['content'].lower():
+                if post not in found_posts: # in case it was added already by title query
+                    found_posts.append(post)
+    return jsonify(found_posts), 200
+
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5002, debug=True)
