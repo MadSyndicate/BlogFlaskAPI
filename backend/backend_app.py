@@ -9,6 +9,8 @@ POSTS = [
     {"id": 2, "title": "Second post", "content": "This is the second post."},
 ]
 
+ALLOWED_SORT_KEYS = ["title", "content"]
+
 
 def find_post_by_id(post_id):
     fetched_post = [p for p in POSTS if p.get('id') == post_id]
@@ -32,7 +34,29 @@ def add_post():
 
 @app.route('/api/posts', methods=['GET'])
 def get_posts():
-    return jsonify(POSTS)
+    post_list = POSTS.copy()
+    request_sort_key = request.args.get('sort', None)
+    # only sorting for known keys (no error with 'invalid' key here)
+    if request_sort_key in ALLOWED_SORT_KEYS:
+        request_direction = request.args.get('direction', None)
+        # default sort direction of none is provided
+        if request_direction is None or request_direction == 'asc':
+            post_list = sorted(
+                post_list,
+                key=lambda p: p[request_sort_key]
+            )
+        elif request_direction == 'desc':
+            post_list = sorted(
+                POSTS,
+                key=lambda p: p[request_sort_key],
+                reverse=True
+            )
+        else:
+            return jsonify(
+                {"error": f"Invalid sort direction '{request_direction}'"}
+            ), 400
+
+    return jsonify(post_list), 200
 
 
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
