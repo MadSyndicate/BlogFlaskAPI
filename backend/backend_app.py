@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import Flask, jsonify,request
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -8,13 +8,13 @@ app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
 limiter = Limiter(app=app, key_func=get_remote_address)
 
-POSTS = [
-    ]
+POSTS = []
 
 MANDATORY_POST_KEYS = [("title", str), ("content", str), ("author", str)]
 OPTIONAL_POST_KEYS = [("tags", list)]
 UPDATABLE_KEYS = MANDATORY_POST_KEYS + OPTIONAL_POST_KEYS
-ALLOWED_SORT_KEYS = ["title", "content", "author", "created_at", "updated_at", "tags"]
+ALLOWED_SORT_KEYS = ["id", "title", "content", "author", "created_at", "updated_at", "tags"]
+ALLOWED_SEARCH_KEYS = ["title", "content", "author", "created_at", "updated_at", "tags"]
 
 
 def find_post_by_id(post_id):
@@ -73,6 +73,16 @@ def serialize_post(post):
     }
 
 
+def filter_date_range(posts, field, date_str):
+    start = datetime.fromisoformat(date_str).replace(tzinfo=timezone.utc)
+    end = start + timedelta(days=1)
+
+    return [
+        p for p in posts
+        if start <= p[field] < end
+    ]
+
+
 @app.route('/api/posts', methods=['POST'])
 @limiter.limit("10/minute")
 def add_post():
@@ -92,6 +102,7 @@ def add_post():
         new_post['id'] = max(post['id'] for post in POSTS) + 1
     else:
         new_post['id'] = 1
+
     new_post['created_at'] = datetime.now(timezone.utc)
     new_post['updated_at'] = datetime.now(timezone.utc)
 
@@ -150,10 +161,29 @@ def delete_post_by_id(post_id):
 @app.route('/api/posts/search')
 @limiter.limit("10/minute")
 def search_posts():
-    search_title = request.args.get('title', None)
-    search_content = request.args.get('content', None)
 
     found_posts = []
+    for key in ALLOWED_SEARCH_KEYS:
+        search_param = request.args.get(key, None)
+        if search_param:
+            if key == 'created_at' or key == 'updated_at':
+                matches = filter_date_range(POSTS, key, search_param)
+                for match in matches:
+                    found_posts.append(match)
+            elif key == "tags":     # OR - matching
+                tag_terms = [t.strip() for t in search_param.split(',')]
+
+                matches = [
+                    post for post in POSTS
+                    if any(tag in post.get("tags", []) for tag in tag_terms)    # if all(...) => AND - matching
+                ]
+                for match in matches:
+                    found_posts.append(match)
+
+    found_posts = sort_list(found_posts, request)
+    found_posts = apply_pagination(found_posts, request)
+
+    return found_posts
     # if both query params provided, will search for every match in the titles AND contents
     # without duplicates
     if search_title:
