@@ -169,6 +169,12 @@ def search_posts():
                 ]
                 for match in matches:
                     found_posts.append(match)
+            else:
+                matches = [
+                    post for post in contents if search_param in post[key]
+                ]
+                for match in matches:
+                    found_posts.append(match)
 
     found_posts = sort_list(found_posts, request)
     found_posts = apply_pagination(found_posts, request)

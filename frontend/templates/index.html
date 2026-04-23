@@ -17,7 +17,39 @@
         <div class="input-field">
             <input type="text" id="post-title" placeholder="Enter Post Title">
             <input type="text" id="post-content" placeholder="Enter Post Content">
+            <input type="text" id="post-author" placeholder="Enter Author Name">
             <button onclick="addPost()">Add Post</button>
+        </div>
+        <div class="input-field">
+            <!-- Suche -->
+            <input type="text" id="search-value" placeholder="Search value">
+            <select id="search-field">
+                <option value="title">Title</option>
+                <option value="content">Content</option>
+                <option value="author">Author</option>
+                <option value="tags">Tags</option>
+            </select>
+
+            <!-- Sortierung -->
+            <select id="sort-key">
+                <option value="id">ID</option>
+                <option value="title">Title</option>
+                <option value="content">Content</option>
+                <option value="author">Author</option>
+                <option value="created_at">Created</option>
+                <option value="updated_at">Updated</option>
+                <option value="tags">Tags</option>
+            </select>
+            <select id="sort-order">
+                <option value="asc">ASC</option>
+                <option value="desc">DESC</option>
+            </select>
+
+            <!-- Pagination -->
+            <input type="number" id="page" placeholder="Page" value="1" min="1">
+            <input type="number" id="page-size" placeholder="Page Size" value="5" min="1">
+
+            <button onclick="loadPosts()">Apply</button>
         </div>
         <div id="post-container">
             <!-- Blog posts will be inserted here by JavaScript -->
