@@ -4,22 +4,17 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
+import json_db_operations
+
 app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
 limiter = Limiter(app=app, key_func=get_remote_address)
-
-POSTS = []
 
 MANDATORY_POST_KEYS = [("title", str), ("content", str), ("author", str)]
 OPTIONAL_POST_KEYS = [("tags", list)]
 UPDATABLE_KEYS = MANDATORY_POST_KEYS + OPTIONAL_POST_KEYS
 ALLOWED_SORT_KEYS = ["id", "title", "content", "author", "created_at", "updated_at", "tags"]
 ALLOWED_SEARCH_KEYS = ["title", "content", "author", "created_at", "updated_at", "tags"]
-
-
-def find_post_by_id(post_id):
-    fetched_post = [p for p in POSTS if p.get('id') == post_id]
-    return fetched_post[0] if len(fetched_post) == 1 else None  #only if exact 1 match found
 
 
 def sort_list(post_list, provided_request):
@@ -56,20 +51,11 @@ def apply_pagination(post_list, provided_request):
     return post_list[start_index:end_index]
 
 
-def rollback_change(to_rollback_post, original_post):
-    for key, value in to_rollback_post.items():
-        if key in dict(UPDATABLE_KEYS): #only for keys that can be updated by user
-            if original_post.get(key, None) is None:
-                del to_rollback_post[key]
-            elif original_post.get(key) != value:
-                to_rollback_post[key] = original_post.get(key)
-
-
 def serialize_post(post):
     return {
         **post,
-        "created_at":post['created_at'].strftime("%Y-%m-%d"),
-        "updated_at": post['updated_at'].strftime("%Y-%m-%d")
+        "created_at": datetime.fromisoformat(post['created_at']).strftime("%Y-%m-%d"),
+        "updated_at": datetime.fromisoformat(post['updated_at']).strftime("%Y-%m-%d")
     }
 
 
@@ -79,7 +65,7 @@ def filter_date_range(posts, field, date_str):
 
     return [
         p for p in posts
-        if start <= p[field] < end
+        if start <= datetime.fromisoformat(p[field]).replace(tzinfo=timezone.utc) < end
     ]
 
 
@@ -98,15 +84,17 @@ def add_post():
     if bad_req_collect:
         return jsonify({"error": "One or more properties are missing", "missing": bad_req_collect}), 400
 
-    if POSTS:
-        new_post['id'] = max(post['id'] for post in POSTS) + 1
+    db_data = json_db_operations.get_posts()
+
+    if db_data:
+        new_post['id'] = max(post['id'] for post in db_data) + 1
     else:
         new_post['id'] = 1
 
-    new_post['created_at'] = datetime.now(timezone.utc)
-    new_post['updated_at'] = datetime.now(timezone.utc)
+    new_post['created_at'] = datetime.now(timezone.utc).isoformat()
+    new_post['updated_at'] = datetime.now(timezone.utc).isoformat()
 
-    POSTS.append(new_post)
+    json_db_operations.save_new_post(new_post)
 
     return jsonify(serialize_post(new_post)), 201
 
@@ -114,7 +102,7 @@ def add_post():
 @app.route('/api/posts', methods=['GET'])
 @limiter.limit("10/minute")
 def get_posts():
-    post_list = POSTS.copy()
+    post_list = json_db_operations.get_posts()
 
     post_list = sort_list(post_list, request)
     post_list = apply_pagination(post_list, request)
@@ -125,33 +113,34 @@ def get_posts():
 @app.route('/api/posts/<int:post_id>', methods=['PUT'])
 @limiter.limit("10/minute")
 def update_post_by_id(post_id):
-    existing_post = find_post_by_id(post_id)
+    existing_post = json_db_operations.get_post_by_id(post_id)
+
     if existing_post:
-        rollbackable_post = existing_post.copy()    # in case any update property breaky -> rollback
         new_data = request.get_json()
         validation_dict = dict(UPDATABLE_KEYS)
         for key, value in new_data.items():
             if key in validation_dict:    # only update keys when allowed
                     if isinstance(value, validation_dict[key]): # only if type for key is correct
                         existing_post[key] = value
-                        existing_post['updated_at'] = datetime.now(timezone.utc)
+                        existing_post['updated_at'] = datetime.now(timezone.utc).isoformat()
                     else:
-                        rollback_change(existing_post, rollbackable_post)
                         return jsonify(
                             {"error": f"Key '{key}' must be of type <{validation_dict[key]}>."
-                                      " Changes rolled back."}
+                                      " No changes made."}
                         ), 400
 
+        json_db_operations.update_post(post_id, existing_post)
         return jsonify(serialize_post(existing_post)), 200
+
     return jsonify({"error": f"No post with id '{post_id}' found."}), 404
 
 
 @app.route('/api/posts/<int:post_id>', methods=['DELETE'])
 @limiter.limit("10/minute")
 def delete_post_by_id(post_id):
-    existing_post = find_post_by_id(post_id)
+    existing_post = json_db_operations.get_post_by_id(post_id)
     if existing_post:
-        POSTS.remove(existing_post)
+        json_db_operations.delete_post(post_id)
         return jsonify(
             {"message": f"Post with id '{post_id}' has been deleted successfully."}
         ), 200
@@ -162,20 +151,21 @@ def delete_post_by_id(post_id):
 @limiter.limit("10/minute")
 def search_posts():
 
+    contents = json_db_operations.get_posts()
     found_posts = []
     for key in ALLOWED_SEARCH_KEYS:
         search_param = request.args.get(key, None)
         if search_param:
             if key == 'created_at' or key == 'updated_at':
-                matches = filter_date_range(POSTS, key, search_param)
+                matches = filter_date_range(contents, key, search_param)
                 for match in matches:
                     found_posts.append(match)
-            elif key == "tags":     # OR - matching
+            elif key == "tags":
                 tag_terms = [t.strip() for t in search_param.split(',')]
-
+                # if all(...) => AND-Matching, rn OR-Matching
                 matches = [
-                    post for post in POSTS
-                    if any(tag in post.get("tags", []) for tag in tag_terms)    # if all(...) => AND - matching
+                    post for post in contents
+                    if any(tag in post.get("tags", []) for tag in tag_terms)
                 ]
                 for match in matches:
                     found_posts.append(match)
