@@ -184,22 +184,6 @@ def search_posts():
     found_posts = apply_pagination(found_posts, request)
 
     return found_posts
-    # if both query params provided, will search for every match in the titles AND contents
-    # without duplicates
-    if search_title:
-        for post in POSTS:
-            if search_title.lower() in post['title'].lower():
-                found_posts.append(post)
-    if search_content:
-        for post in POSTS:
-            if search_content.lower() in post['content'].lower():
-                if post not in found_posts: # in case it was added already by title query
-                    found_posts.append(post)
-
-    found_posts = sort_list(found_posts, request)
-    found_posts = apply_pagination(found_posts, request)
-
-    return jsonify(found_posts), 200
 
 
 @app.errorhandler(404)
