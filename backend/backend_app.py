@@ -176,7 +176,7 @@ def search_posts():
                     found_posts.append(match)
             elif key == "tags":
                 tag_terms = [t.strip() for t in search_param.split(',')]
-                # if all(...) => AND-Matching, rn OR-Matching
+                # if all(...) => AND-Matching, right-now OR-Matching
                 matches = [
                     post for post in contents
                     if any(tag in post.get("tags", []) for tag in tag_terms)

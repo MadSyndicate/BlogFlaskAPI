@@ -1,6 +1,8 @@
 import json
+from pathlib import Path
 
-FILE_URL = './posts.json'
+BASE_DIR = Path(__file__).resolve().parent.parent
+FILE_URL = f'{BASE_DIR}/backend/posts.json'
 
 
 def get_posts():
