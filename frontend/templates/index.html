@@ -22,32 +22,48 @@
         </div>
         <div class="input-field">
             <!-- Suche -->
-            <input type="text" id="search-value" placeholder="Search value">
-            <select id="search-field">
-                <option value="title">Title</option>
-                <option value="content">Content</option>
-                <option value="author">Author</option>
-                <option value="tags">Tags</option>
-            </select>
+            <div class="field">
+                <label for="search-value">Search</label>
+                <input type="text" id="search-value" placeholder="Search value">
+            </div>
+
+            <div class="field">
+                <label for="search-field">Field</label>
+                <select id="search-field">
+                    <option value="title">Title</option>
+                    <option value="content">Content</option>
+                    <option value="author">Author</option>
+                    <option value="tags">Tags</option>
+                </select>
+            </div>
 
             <!-- Sortierung -->
-            <select id="sort-key">
-                <option value="id">ID</option>
-                <option value="title">Title</option>
-                <option value="content">Content</option>
-                <option value="author">Author</option>
-                <option value="created_at">Created</option>
-                <option value="updated_at">Updated</option>
-                <option value="tags">Tags</option>
-            </select>
-            <select id="sort-order">
-                <option value="asc">ASC</option>
-                <option value="desc">DESC</option>
-            </select>
-
+            <div class="field">
+                <label for="sort-key">Sort</label>
+                <select id="sort-key">
+                    <option value="id">ID</option>
+                    <option value="title">Title</option>
+                    <option value="content">Content</option>
+                    <option value="author">Author</option>
+                    <option value="created_at">Created</option>
+                    <option value="updated_at">Updated</option>
+                    <option value="tags">Tags</option>
+                </select>
+                <select id="sort-order">
+                    <option value="asc">ASC</option>
+                    <option value="desc">DESC</option>
+                </select>
+            </div>
             <!-- Pagination -->
-            <input type="number" id="page" placeholder="Page" value="1" min="1">
-            <input type="number" id="page-size" placeholder="Page Size" value="5" min="1">
+            <div class="field">
+                <label for="page">Page</label>
+                <input type="number" id="page" value="1" min="1">
+            </div>
+
+            <div class="field">
+                <label for="page-size">Page Size</label>
+                <input type="number" id="page-size" value="5" min="1">
+            </div>
 
             <button onclick="loadPosts()">Apply</button>
         </div>

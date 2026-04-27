@@ -179,7 +179,7 @@ def search_posts():
     found_posts = sort_list(found_posts, request)
     found_posts = apply_pagination(found_posts, request)
 
-    return found_posts
+    return jsonify([serialize_post(p) for p in found_posts]), 200
 
 
 @app.errorhandler(404)
