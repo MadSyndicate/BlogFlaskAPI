@@ -3,12 +3,26 @@ from flask import Flask, jsonify,request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_swagger_ui import get_swaggerui_blueprint
 
 import json_db_operations
 
 app = Flask(__name__)
 CORS(app)  # This will enable CORS for all routes
 limiter = Limiter(app=app, key_func=get_remote_address)
+
+SWAGGER_URL="/api/docs"
+API_URL="/static/masterblog.json"
+
+swagger_ui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        'app_name': 'Masterblog API'
+    }
+)
+app.register_blueprint(swagger_ui_blueprint, url_prefix=SWAGGER_URL)
+
 
 MANDATORY_POST_KEYS = [("title", str), ("content", str), ("author", str)]
 OPTIONAL_POST_KEYS = [("tags", list)]
